@@ -17,29 +17,83 @@ services:
       - 9200
     volumes:
       - /var/lib/elasticsearch/data
-  postgresql:
-    container_name: temporal-postgresql
-    environment:
-      POSTGRES_PASSWORD: temporal
-      POSTGRES_USER: temporal
-    image: postgres:${POSTGRESQL_VERSION}
-    networks:
-      - temporal-network
-    expose:
-      - 5432
-    volumes:
-      - /var/lib/postgresql/data
+
+  # postgresql:
+  #   container_name: temporal-postgresql
+  #   environment:
+  #     POSTGRES_PASSWORD: temporal
+  #     POSTGRES_USER: temporal
+  #   image: postgres:${POSTGRESQL_VERSION}
+  #   networks:
+  #     - temporal-network
+  #   expose:
+  #     - 5432
+  #   volumes:
+  #     - /var/lib/postgresql/data
+  # temporal:
+  #   container_name: temporal
+  #   depends_on:
+  #     - postgresql
+  #     - elasticsearch
+  #   environment:
+  #     - DB=postgres12
+  #     - DB_PORT=5432
+  #     - POSTGRES_USER=temporal
+  #     - POSTGRES_PWD=temporal
+  #     - POSTGRES_SEEDS=postgresql
+  #     - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+  #     - ENABLE_ES=true
+  #     - ES_SEEDS=elasticsearch
+  #     - ES_VERSION=v7
+  #     - TEMPORAL_ADDRESS=temporal:7233
+  #     - TEMPORAL_CLI_ADDRESS=temporal:7233
+  #   image: temporalio/auto-setup:${TEMPORAL_VERSION}
+  #   networks:
+  #     - temporal-network
+  #   ports:
+  #     - 7233:7233
+  #   volumes:
+  #     - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+
+  # temporal:
+  #   container_name: temporal
+  #   depends_on:
+  #     - mysql
+  #     - elasticsearch
+  #   environment:
+  #     - DB=mysql8
+  #     - DB_PORT=3306
+  #     - MYSQL_USER=temporal
+  #     - MYSQL_PWD=temporal
+  #     - MYSQL_SEEDS=mysql
+  #     - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+  #     - ENABLE_ES=true
+  #     - ES_SEEDS=elasticsearch
+  #     - ES_VERSION=v7
+  #     - TEMPORAL_ADDRESS=temporal:7233
+  #     - TEMPORAL_CLI_ADDRESS=temporal:7233
+  #   image: temporalio/auto-setup:${TEMPORAL_VERSION}
+  #   networks:
+  #     - temporal-network
+  #   ports:
+  #     - 7233:7233
+  #   volumes:
+  #     - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+
   temporal:
     container_name: temporal
     depends_on:
-      - postgresql
       - elasticsearch
     environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal
-      - POSTGRES_SEEDS=postgresql
+      - DB=mysql8
+      - DB_PORT=3306
+      - MYSQL_USER=temporal
+      - MYSQL_PWD=temporal
+      - MYSQL_SEEDS=host.docker.internal  # or actual IP/domain if remote
+      - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - MYSQL_TX_ISOLATION_COMPAT=true
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=true
       - ES_SEEDS=elasticsearch
@@ -53,6 +107,8 @@ services:
       - 7233:7233
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+
   temporal-admin-tools:
     container_name: temporal-admin-tools
     depends_on:
@@ -60,9 +116,22 @@ services:
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CLI_ADDRESS=temporal:7233
+      - NAMESPACE=approval-namespace
+      - RETENTION_DAYS=7
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
     networks:
       - temporal-network
+    command: >
+      sh -c "until tctl --namespace $$NAMESPACE namespace describe;
+      do
+        echo 'Creating namespace $$NAMESPACE...';
+        tctl --namespace $$NAMESPACE namespace register \
+          --retention $$((RETENTION_DAYS*24)) \
+          --description 'Automatically created namespace';
+        sleep 5;
+      done;
+      echo 'Namespace $$NAMESPACE ready!';
+      exec tail -f /dev/null"
     stdin_open: true
     tty: true
   temporal-ui:
@@ -81,3 +150,5 @@ networks:
   temporal-network:
     driver: bridge
     name: temporal-network
+
+

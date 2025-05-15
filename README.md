@@ -153,3 +153,28 @@ docker run -e CASSANDRA_SEEDS=10.x.x.x                  -- csv of Cassandra serv
     temporalio/server:<tag>
 ```
 
+```bash
+# to create namespace inside temporal, we dont need it because already created in docker compose
+docker exec temporal-admin-tools tctl --namespace approval-namespace namespace register --description "Namespace for approval workflows"
+```
+
+```bash
+# to list namespaces in temporal
+winpty docker exec -it temporal-admin-tools tctl namespace list
+```
+
+### To create user on DB
+```sql
+DROP USER IF EXISTS 'temporal'@'%';
+CREATE USER 'temporal'@'%' IDENTIFIED WITH mysql_native_password BY 'temporal';
+GRANT ALL PRIVILEGES ON temporal.* TO 'temporal'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+```
+
+```sql
+SHOW GRANTS FOR 'temporal'@'%';
+``
+######### Should show:
+*######### GRANT USAGE ON *.* TO `temporal`@`%`
+*######### GRANT ALL PRIVILEGES ON `temporal`.* TO `temporal`@`%` WITH GRANT OPTION
+
